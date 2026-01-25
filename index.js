@@ -1,62 +1,51 @@
-// index.js
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
+import pkg from "pg";
+
+const { Pool } = pkg;
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
-/* =========================
-   CORS 設定
-========================= */
+/* CORS */
 app.use(cors({
-  origin: [
-    "https://teamgensourei.github.io", // GitHub Pages
-  ],
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
+  origin: "https://teamgensourei.github.io",
 }));
 
-/* =========================
-   JSON 受け取り
-========================= */
 app.use(express.json());
 
-/* =========================
-   動作確認用
-========================= */
-app.get("/", (req, res) => {
-  res.send("Gensourei API is running");
+/* Postgres */
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
-/* =========================
-   アカウント登録 API
-========================= */
-app.post("/api/register", (req, res) => {
+/* 動作確認 */
+app.get("/", (req, res) => {
+  res.send("GENSOUREIKAI SYSTEM ONLINE");
+});
+
+/* 登録API */
+app.post("/api/register", async (req, res) => {
   const { username, password } = req.body;
 
-  // バリデーション
   if (!username || !password) {
-    return res.status(400).json({
-      success: false,
-      message: "username と password は必須です",
-    });
+    return res.json({ success: false, message: "入力不足" });
   }
 
-  // ※ここではDB未使用（仮）
-  console.log("新規登録:", username, password);
+  try {
+    await pool.query(
+      "INSERT INTO users (username, password) VALUES ($1, $2)",
+      [username, password]
+    );
 
-  res.json({
-    success: true,
-    message: "登録完了",
-    user: {
-      username,
-    },
-  });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.json({ success: false, message: "登録失敗" });
+  }
 });
 
-/* =========================
-   サーバー起動
-========================= */
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on ${PORT}`);
 });
