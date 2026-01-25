@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>還遭員 登録</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      background: #0b0b0b;
+      color: #eaeaea;
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .box {
+      width: 300px;
+      padding: 20px;
+      border: 1px solid #333;
+      background: #111;
+    }
+    input, button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 8px;
+      background: #1a1a1a;
+      color: #fff;
+      border: 1px solid #444;
+    }
+    button {
+      cursor: pointer;
+    }
+    .msg {
+      margin-top: 10px;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>還遭員 登録</h2>
+
+    <input id="username" placeholder="ユーザー名">
+    <input id="password" type="password" placeholder="パスワード">
+
+    <button onclick="register()">登録</button>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <script>
+    async function register() {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+      const msg = document.getElementById("msg");
+
+      msg.textContent = "送信中…";
+
+      try {
+        const res = await fetch(
+          "https://gensoureikai-2od4.onrender.com/register",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ username, password })
+          }
+        );
+
+        const data = await res.json();
+
+        if (res.ok) {
+          msg.textContent = "登録成功！ID: " + data.id;
+        } else {
+          msg.textContent = "エラー: " + (data.error || "失敗");
+        }
+      } catch (e) {
+        msg.textContent = "通信エラー";
+      }
+    }
+  </script>
+</body>
+</html>
