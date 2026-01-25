@@ -1,52 +1,62 @@
-import express from "express";
-import pkg from "pg";
-import bcrypt from "bcrypt";
-
-const { Pool } = pkg;
+// index.js
+const express = require("express");
+const cors = require("cors");
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+/* =========================
+   CORS 設定
+========================= */
+app.use(cors({
+  origin: [
+    "https://teamgensourei.github.io", // GitHub Pages
+  ],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+}));
+
+/* =========================
+   JSON 受け取り
+========================= */
 app.use(express.json());
 
-// RenderのDATABASE_URLを使う
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-// 起動確認
+/* =========================
+   動作確認用
+========================= */
 app.get("/", (req, res) => {
-  res.send("還遭員システム 起動中");
+  res.send("Gensourei API is running");
 });
 
-// アカウント作成
-app.post("/register", async (req, res) => {
-  try {
-    const { username, password } = req.body;
+/* =========================
+   アカウント登録 API
+========================= */
+app.post("/api/register", (req, res) => {
+  const { username, password } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ error: "missing fields" });
-    }
-
-    // パスワードをハッシュ化
-    const hash = await bcrypt.hash(password, 10);
-
-    const result = await pool.query(
-      "INSERT INTO accounts (username, password_hash) VALUES ($1, $2) RETURNING id",
-      [username, hash]
-    );
-
-    res.json({
-      success: true,
-      id: result.rows[0].id
+  // バリデーション
+  if (!username || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "username と password は必須です",
     });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "server error" });
   }
+
+  // ※ここではDB未使用（仮）
+  console.log("新規登録:", username, password);
+
+  res.json({
+    success: true,
+    message: "登録完了",
+    user: {
+      username,
+    },
+  });
 });
 
-const PORT = process.env.PORT || 3000;
+/* =========================
+   サーバー起動
+========================= */
 app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
