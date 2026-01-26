@@ -1,105 +1,62 @@
 import express from "express";
 import cors from "cors";
+import session from "express-session";
 import bcrypt from "bcrypt";
 import pkg from "pg";
 
 const { Pool } = pkg;
-
 const app = express();
-const PORT = process.env.PORT || 10000;
 
+// ===== 基本設定 =====
+app.use(express.json());
 app.use(cors({
   origin: "https://teamgensourei.github.io",
-  methods: ["GET", "POST"],
+  credentials: true
 }));
-app.use(express.json());
 
+app.use(session({
+  secret: "gensourei-secret",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none"
+  }
+}));
+
+// ===== DB =====
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: { rejectUnauthorized: false }
 });
 
-/* =====================
-   DB 初期化（破壊しない）
-===================== */
-async function initDB() {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        member_code TEXT UNIQUE,
-        agreed_terms BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-    console.log("users table ready");
-  } catch (err) {
-    console.error(err);
-  }
-}
-initDB();
-
-/* =====================
-   ユーティリティ
-===================== */
-function generateMemberCode() {
-  return "KR-" + Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
-/* =====================
-   動作確認
-===================== */
-app.get("/", (req, res) => {
-  res.send("GENSOUREIKAI SYSTEM ONLINE");
-});
-
-/* =====================
-   登録API（互換あり）
-===================== */
+// ===== 登録（既存想定・壊さない） =====
 app.post("/api/register", async (req, res) => {
-  const { username, password, agree } = req.body;
-
+  const { username, password } = req.body;
   if (!username || !password) {
-    return res.json({ success: false, message: "入力不足" });
+    return res.status(400).json({ error: "missing" });
   }
 
+  const hash = await bcrypt.hash(password, 10);
+
   try {
-    const hashed = await bcrypt.hash(password, 10);
-    const memberCode = generateMemberCode();
-
     await pool.query(
-      `INSERT INTO users (username, password, member_code, agreed_terms)
-       VALUES ($1, $2, $3, $4)`,
-      [username, hashed, memberCode, !!agree]
+      "INSERT INTO users (username, password_hash) VALUES ($1, $2)",
+      [username, hash]
     );
-
-    res.json({
-      success: true,
-      member_code: memberCode,
-      message: "還遭員登録が完了しました",
-    });
-  } catch (err) {
-    if (err.code === "23505") {
-      return res.json({
-        success: false,
-        message: "このユーザー名は既に存在します",
-      });
-    }
-    console.error(err);
-    res.json({ success: false, message: "登録失敗" });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ error: "user exists" });
   }
 });
 
-/* =====================
-   ログインAPI（新規）
-===================== */
+// ===== ログイン =====
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
   const result = await pool.query(
-    "SELECT * FROM users WHERE username = $1",
+    "SELECT id, password_hash FROM users WHERE username = $1",
     [username]
   );
 
@@ -108,18 +65,33 @@ app.post("/api/login", async (req, res) => {
   }
 
   const user = result.rows[0];
-  const ok = await bcrypt.compare(password, user.password);
+  const ok = await bcrypt.compare(password, user.password_hash);
 
   if (!ok) {
     return res.json({ success: false });
   }
 
-  res.json({
-    success: true,
-    member_code: user.member_code,
+  req.session.userId = user.id;
+  res.json({ success: true });
+});
+
+// ===== ログイン確認 =====
+app.get("/api/me", (req, res) => {
+  if (!req.session.userId) {
+    return res.json({ loggedIn: false });
+  }
+  res.json({ loggedIn: true, userId: req.session.userId });
+});
+
+// ===== ログアウト =====
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.json({ success: true });
   });
 });
 
+// ===== 起動 =====
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
+  console.log("Server running on", PORT);
 });
