@@ -1,97 +1,106 @@
 import express from "express";
 import cors from "cors";
-import session from "express-session";
-import bcrypt from "bcrypt";
 import pkg from "pg";
 
 const { Pool } = pkg;
-const app = express();
 
-// ===== 基本設定 =====
-app.use(express.json());
+/* =====================
+   基本設定
+===================== */
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+/* =====================
+   CORS 設定
+   （GitHub Pages からのみ許可）
+===================== */
 app.use(cors({
   origin: "https://teamgensourei.github.io",
-  credentials: true
+  methods: ["GET", "POST"],
 }));
 
-app.use(session({
-  secret: "gensourei-secret",
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none"
-  }
-}));
+app.use(express.json());
 
-// ===== DB =====
+/* =====================
+   Postgres 接続
+===================== */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
 });
 
-// ===== 登録（既存想定・壊さない） =====
+/* =====================
+   DB 初期化（テーブル自動作成）
+===================== */
+async function initDB() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    console.log("users table ready");
+  } catch (err) {
+    console.error("DB init error:", err);
+  }
+}
+
+initDB();
+
+/* =====================
+   ルート（動作確認）
+===================== */
+app.get("/", (req, res) => {
+  res.send("GENSOUREIKAI SYSTEM ONLINE");
+});
+
+/* =====================
+   アカウント登録 API
+===================== */
 app.post("/api/register", async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: "missing" });
-  }
 
-  const hash = await bcrypt.hash(password, 10);
+  if (!username || !password) {
+    return res.json({
+      success: false,
+      message: "username または password が未入力です",
+    });
+  }
 
   try {
     await pool.query(
-      "INSERT INTO users (username, password_hash) VALUES ($1, $2)",
-      [username, hash]
+      "INSERT INTO users (username, password) VALUES ($1, $2)",
+      [username, password]
     );
-    res.json({ success: true });
-  } catch (e) {
-    res.status(400).json({ error: "user exists" });
+
+    res.json({
+      success: true,
+      message: "還遭員登録が完了しました",
+    });
+  } catch (err) {
+    console.error(err);
+
+    if (err.code === "23505") {
+      // UNIQUE 制約違反
+      return res.json({
+        success: false,
+        message: "このユーザー名は既に使用されています",
+      });
+    }
+
+    res.json({
+      success: false,
+      message: "登録中にエラーが発生しました",
+    });
   }
 });
 
-// ===== ログイン =====
-app.post("/api/login", async (req, res) => {
-  const { username, password } = req.body;
-
-  const result = await pool.query(
-    "SELECT id, password_hash FROM users WHERE username = $1",
-    [username]
-  );
-
-  if (result.rows.length === 0) {
-    return res.json({ success: false });
-  }
-
-  const user = result.rows[0];
-  const ok = await bcrypt.compare(password, user.password_hash);
-
-  if (!ok) {
-    return res.json({ success: false });
-  }
-
-  req.session.userId = user.id;
-  res.json({ success: true });
-});
-
-// ===== ログイン確認 =====
-app.get("/api/me", (req, res) => {
-  if (!req.session.userId) {
-    return res.json({ loggedIn: false });
-  }
-  res.json({ loggedIn: true, userId: req.session.userId });
-});
-
-// ===== ログアウト =====
-app.post("/api/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.json({ success: true });
-  });
-});
-
-// ===== 起動 =====
-const PORT = process.env.PORT || 10000;
+/* =====================
+   サーバー起動
+===================== */
 app.listen(PORT, () => {
-  console.log("Server running on", PORT);
+  console.log(`Server running on ${PORT}`);
 });
