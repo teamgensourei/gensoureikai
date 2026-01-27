@@ -1,14 +1,14 @@
 {
-  "name": "kaiso-system",
-  "version": "1.0.0",
+  "name": "gensourei-server",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "bcrypt": "^5.1.0",
     "cors": "^2.8.5",
-    "pg": "^8.11.5",
-    "bcrypt": "^5.1.0"
+    "express": "^4.19.2",
+    "express-session": "^1.17.3",
+    "pg": "^8.11.5"
   }
 }
