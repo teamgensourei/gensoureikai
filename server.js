@@ -5,15 +5,15 @@ import bcrypt from "bcrypt";
 import pkg from "pg";
 
 const { Pool } = pkg;
-const app = express;
+const app = express();
 
 /* =====================
-   trust proxy（超重要）
+   trust proxy（必須）
 ===================== */
 app.set("trust proxy", 1);
 
 /* =====================
-   基本ミドルウェア
+   middleware
 ===================== */
 app.use(express.json());
 
@@ -29,13 +29,13 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: true,     // RenderはHTTPS
-    sameSite: "none"  // GitHub Pages から使う
+    secure: true,
+    sameSite: "none"
   }
 }));
 
 /* =====================
-   DB（Postgres）
+   DB
 ===================== */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -43,7 +43,7 @@ const pool = new Pool({
 });
 
 /* =====================
-   登録（既存・維持）
+   REGISTER
 ===================== */
 app.post("/api/register", async (req, res) => {
   try {
@@ -60,13 +60,13 @@ app.post("/api/register", async (req, res) => {
     );
 
     res.json({ success: true });
-  } catch (err) {
+  } catch {
     res.status(400).json({ error: "user exists" });
   }
 });
 
 /* =====================
-   ログイン
+   LOGIN
 ===================== */
 app.post("/api/login", async (req, res) => {
   try {
@@ -90,15 +90,13 @@ app.post("/api/login", async (req, res) => {
 
     req.session.userId = user.id;
     res.json({ success: true });
-
-  } catch (err) {
-    console.error(err);
+  } catch {
     res.status(500).json({ success: false });
   }
 });
 
 /* =====================
-   ログイン状態確認
+   SESSION CHECK
 ===================== */
 app.get("/api/me", (req, res) => {
   if (!req.session.userId) {
@@ -111,7 +109,7 @@ app.get("/api/me", (req, res) => {
 });
 
 /* =====================
-   ログアウト
+   LOGOUT
 ===================== */
 app.post("/api/logout", (req, res) => {
   req.session.destroy(() => {
@@ -121,7 +119,14 @@ app.post("/api/logout", (req, res) => {
 });
 
 /* =====================
-   起動
+   health check
+===================== */
+app.get("/", (req, res) => {
+  res.send("SERVER OK");
+});
+
+/* =====================
+   START
 ===================== */
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
