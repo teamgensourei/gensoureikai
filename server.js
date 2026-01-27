@@ -137,3 +137,18 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log("Server running on", PORT);
 });
+
+// ===== DB 修復用（一次対応）=====
+app.get("/api/_fix_users_table", async (req, res) => {
+  try {
+    await pool.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS password_hash TEXT;
+    `);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed" });
+  }
+});
