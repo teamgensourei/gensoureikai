@@ -138,17 +138,27 @@ app.listen(PORT, () => {
   console.log("Server running on", PORT);
 });
 
-// ===== DB 修復用（一次対応）=====
-app.get("/api/_fix_users_table", async (req, res) => {
+// ===== 強制DB修復（一次対応・必ず成功する）=====
+app.get("/__force_fix_db__", async (req, res) => {
   try {
+    // users テーブルが無ければ作る
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL
+      );
+    `);
+
+    // password_hash が無ければ追加
     await pool.query(`
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS password_hash TEXT;
     `);
 
-    res.json({ success: true });
+    res.json({ ok: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "failed" });
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
